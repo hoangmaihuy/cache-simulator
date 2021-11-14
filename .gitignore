@@ -32,3 +32,12 @@
 *.app
 
 .idea
+cache-simulator
+build
+cmake-build-debug
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+.vscode
+.idea

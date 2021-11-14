@@ -1,0 +1,20 @@
+//
+// Created by Mai Hoàng on 14/11/2021.
+//
+
+#ifndef CACHE_SIMULATOR_CONFIG_H
+#define CACHE_SIMULATOR_CONFIG_H
+
+#define DEFAULT_CACHE_SIZE 32 * (1 << 10)
+#define DEFAULT_CACHE_SETS 64
+#define DEFAULT_CACHE_LINES 8
+#define DEFAULT_WRITE_THROUGH false
+#define DEFAULT_WRITE_ALLOCATE false
+
+#define MEM_BUS_LATENCY 6
+#define MEM_HIT_LATENCY 100
+
+#define L1_BUS_LATENCY 3
+#define L1_HIT_LATENCY 10
+
+#endif //CACHE_SIMULATOR_CONFIG_H
