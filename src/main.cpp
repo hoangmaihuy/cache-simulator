@@ -1,16 +1,20 @@
 #include <iostream>
 #include <fstream>
 #include <argparse/argparse.hpp>
-#include "config.h"
-#include "cache.h"
-#include "memory.h"
+#include "config.hpp"
+#include "cache.hpp"
+#include "memory.hpp"
 
 using namespace std;
 
 string trace_path;
-CacheConfig l1_config;
-Memory mem;
-Cache l1;
+CacheConfig l1_config, l2_config;
+Memory *mem;
+Cache *l1;
+Cache *l2;
+int total_hit, total_time, total_request, iter;
+
+bool verbose = false;
 
 void parse_args(int argc, char *argv[]) {
   argparse::ArgumentParser parser("cache-simulator");
@@ -18,27 +22,14 @@ void parse_args(int argc, char *argv[]) {
   parser.add_argument("trace-path")
       .help("Path to trace file");
 
-  parser.add_argument("--size")
-      .help("Cache size (bytes)")
-      .default_value(DEFAULT_CACHE_SIZE);
+  parser.add_argument("--verbose")
+      .help("Verbose mode")
+      .default_value(false)
+      .implicit_value(true);
 
-  parser.add_argument("--setnum")
-      .help("Number of cache sets")
-      .default_value(DEFAULT_CACHE_SETS);
-
-  parser.add_argument("--associativity")
-      .help("Number of lines per cache set")
-      .default_value(DEFAULT_CACHE_LINES);
-
-  parser.add_argument("--write-through")
-      .help("Enable write through, default write-back")
-      .default_value(DEFAULT_WRITE_THROUGH)
-      .implicit_value(!DEFAULT_WRITE_THROUGH);
-
-  parser.add_argument("--write-allocate")
-      .help("Enable write allocate, default no-write-allocate")
-      .default_value(DEFAULT_WRITE_ALLOCATE)
-      .implicit_value(!DEFAULT_WRITE_ALLOCATE);
+  parser.add_argument("--iter")
+      .help("Trace iteration count")
+      .default_value(10);
 
   try {
     parser.parse_args(argc, argv);
@@ -50,40 +41,115 @@ void parse_args(int argc, char *argv[]) {
   }
 
   trace_path = parser.get<string>("trace-path");
-  l1_config.size = parser.get<int>("--size");
-  l1_config.set_num = parser.get<int>("--setnum");
-  l1_config.associativity = parser.get<int>("--associativity");
-  l1_config.write_through = parser.get<bool>("--write-through");
-  l1_config.write_allocate = parser.get<bool>("--write-allocate");
+  verbose = parser.get<bool>("--verbose");
+  iter = parser.get<int>("--iter");
+
+  l1_config.size = L1_CACHE_SIZE;
+  l1_config.block_size = L1_BLOCK_SIZE;
+  l1_config.associativity = L1_CACHE_LINES;
+  l1_config.write_through = L1_WRITE_THROUGH;
+  l1_config.write_allocate = L1_WRITE_ALLOCATE;
+
+
+  l2_config.size = L2_CACHE_SIZE;
+  l2_config.block_size = L2_BLOCK_SIZE;
+  l2_config.associativity = L2_CACHE_LINES;
+  l2_config.write_through = L2_WRITE_THROUGH;
+  l2_config.write_allocate = L2_WRITE_ALLOCATE;
 }
 
 void init_cache() {
   StorageStats stats;
   memset(&stats, 0, sizeof(stats));
 
+  l1 = new Cache();
+
+  l2 = new Cache();
+  mem = new Memory();
+
   // Init L1 cache
-  l1.SetStats(stats);
-  l1.SetLower(&mem);
-  l1.SetConfig(l1_config);
-  l1.SetLatency({L1_HIT_LATENCY, L1_BUS_LATENCY});
+  l1->SetStats(stats);
+  l1->SetLower(l2);
+  l1->SetConfig(l1_config);
+  l1->SetLatency({L1_HIT_LATENCY, L1_BUS_LATENCY});
+
+  // Init L2 cache
+  l2->SetStats(stats);
+  l2->SetLower(mem);
+  l2->SetConfig(l2_config);
+  l2->SetLatency({L2_HIT_LATENCY, L2_BUS_LATENCY});
 
   // Init memory
-  mem.SetStats(stats);
-  mem.SetLatency({MEM_HIT_LATENCY, MEM_BUS_LATENCY});
+  mem->SetStats(stats);
+  mem->SetLatency({MEM_HIT_LATENCY, MEM_BUS_LATENCY});
 }
 
 void handle_trace() {
-  ifstream fi;
-  fi.open(trace_path);
-  char op;
-  uint64_t addr;
-  while (fi >> op >> hex >> addr) {
+  total_hit = 0;
+  total_time = 0;
+  total_request = 0;
+  char *buf = static_cast<char *>(malloc(sizeof(char) * l1_config.block_size));
+  while (iter--) {
+    ifstream fi;
+    fi.open(trace_path);
+    char op;
+    uint64_t addr;
+    int hit, time;
+    while (fi >> op >> hex >> addr) {
+      total_request++;
+      if (op == 'r') {
+        l1->HandleRequest(addr, 1, 1, buf, hit, time);
+      } else {
+        l1->HandleRequest(addr, 1, 0, buf, hit, time);
+      }
+      total_hit += hit;
+      total_time += time;
+      if (verbose) {
+        cerr << op << " " << hex << addr << ": " << hit << " " << time << "\n";
+      }
+    }
+    fi.close();
   }
+  free(buf);
+}
+
+void print_stats() {
+  StorageStats stats;
+
+  printf("Global stats:\n");
+  printf("  Total request   :     %d\n", total_request);
+  printf("  Total time      :     %d\n", total_time);
+  printf("  Miss number     :     %d\n", total_request - total_hit);
+  printf("  Miss rate       :     %f\n", (double)(total_request - total_hit) / total_request);
+
+  l1->GetStats(stats);
+  printf("L1 Cache stats:\n");
+  printf("  Access counter  :     %d\n", stats.access_counter);
+  printf("  Access time     :     %d\n", stats.access_time);
+  printf("  Miss number     :     %d\n", stats.miss_num);
+  printf("  Miss rate       :     %f\n", (double) stats.miss_num / stats.access_counter);
+  printf("  Replace number  :     %d\n", stats.replace_num);
+  printf("  Prefetch number :     %d\n", stats.prefetch_num);
+
+  l2->GetStats(stats);
+  printf("L2 Cache stats:\n");
+  printf("  Access counter  :     %d\n", stats.access_counter);
+  printf("  Access time     :     %d\n", stats.access_time);
+  printf("  Miss number     :     %d\n", stats.miss_num);
+  printf("  Miss rate       :     %f\n", (double) stats.miss_num / stats.access_counter);
+  printf("  Replace number  :     %d\n", stats.replace_num);
+  printf("  Prefetch number :     %d\n", stats.prefetch_num);
+
+  mem->GetStats(stats);
+  printf("Memory stats:\n");
+  printf("  Access counter  :     %d\n", stats.access_counter);
+  printf("  Access time     :     %d\n", stats.access_time);
 }
 
 int main(int argc, char *argv[]) {
   parse_args(argc, argv);
   init_cache();
   handle_trace();
+  print_stats();
   return 0;
 }

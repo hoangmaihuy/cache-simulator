@@ -1,0 +1,28 @@
+//
+// Created by Mai Hoàng on 14/11/2021.
+//
+
+#ifndef CACHE_SIMULATOR_CONFIG_H
+#define CACHE_SIMULATOR_CONFIG_H
+
+#define L1_CACHE_SIZE 32768
+#define L1_BLOCK_SIZE 64
+#define L1_CACHE_LINES 8
+#define L1_WRITE_THROUGH false
+#define L1_WRITE_ALLOCATE true
+#define L1_BUS_LATENCY 0
+#define L1_HIT_LATENCY 3
+
+#define L2_CACHE_SIZE 262144
+#define L2_BLOCK_SIZE 64
+#define L2_CACHE_LINES 8
+#define L2_WRITE_THROUGH false
+#define L2_WRITE_ALLOCATE true
+#define L2_BUS_LATENCY 6
+#define L2_HIT_LATENCY 4
+
+#define MEM_BUS_LATENCY 0
+#define MEM_HIT_LATENCY 100
+
+
+#endif //CACHE_SIMULATOR_CONFIG_H

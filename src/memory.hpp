@@ -2,7 +2,7 @@
 #define CACHE_MEMORY_H_
 
 #include <stdint.h>
-#include "storage.h"
+#include "storage.hpp"
 
 class Memory: public Storage {
  public:

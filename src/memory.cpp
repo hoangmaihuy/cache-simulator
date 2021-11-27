@@ -1,4 +1,4 @@
-#include "memory.h"
+#include "memory.hpp"
 
 void Memory::HandleRequest(uint64_t addr, int bytes, int read,
                           char *content, int &hit, int &time) {
