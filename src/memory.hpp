@@ -11,7 +11,7 @@ class Memory: public Storage {
 
   // Main access process
   void HandleRequest(uint64_t addr, int bytes, int read,
-                     char *content, int &hit, int &time);
+                     char *content, int &hit, int &time, bool prefetch = false);
 
  private:
   // Memory implement

@@ -15,6 +15,7 @@ Cache *l2;
 int total_hit, total_time, total_request, iter;
 
 bool verbose = false;
+bool optimize = false;
 
 void parse_args(int argc, char *argv[]) {
   argparse::ArgumentParser parser("cache-simulator");
@@ -27,9 +28,15 @@ void parse_args(int argc, char *argv[]) {
       .default_value(false)
       .implicit_value(true);
 
+  parser.add_argument("--optimized")
+      .help("Use optimized config")
+      .default_value(false)
+      .implicit_value(true);
+
   parser.add_argument("--iter")
       .help("Trace iteration count")
-      .default_value(10);
+      .default_value(10)
+      .scan<'i', int>();;
 
   try {
     parser.parse_args(argc, argv);
@@ -42,6 +49,7 @@ void parse_args(int argc, char *argv[]) {
 
   trace_path = parser.get<string>("trace-path");
   verbose = parser.get<bool>("--verbose");
+  optimize = parser.get<bool>("--optimized");
   iter = parser.get<int>("--iter");
 
   l1_config.size = L1_CACHE_SIZE;
@@ -49,6 +57,10 @@ void parse_args(int argc, char *argv[]) {
   l1_config.associativity = L1_CACHE_LINES;
   l1_config.write_through = L1_WRITE_THROUGH;
   l1_config.write_allocate = L1_WRITE_ALLOCATE;
+  l1_config.prefetch = 3;
+  l1_config.replacement = "lru";
+  l1_config.mct = 0;
+  l1_config.bypass = false;
 
 
   l2_config.size = L2_CACHE_SIZE;
@@ -56,6 +68,10 @@ void parse_args(int argc, char *argv[]) {
   l2_config.associativity = L2_CACHE_LINES;
   l2_config.write_through = L2_WRITE_THROUGH;
   l2_config.write_allocate = L2_WRITE_ALLOCATE;
+  l2_config.prefetch = 3;
+  l2_config.replacement = "plru";
+  l2_config.mct = 1;
+  l2_config.bypass = true;
 }
 
 void init_cache() {
@@ -114,36 +130,44 @@ void handle_trace() {
 }
 
 void print_stats() {
-  StorageStats stats;
+  StorageStats l1_stats;
+  StorageStats l2_stats;
+  StorageStats mem_stats;
+  l1->GetStats(l1_stats);
+  l2->GetStats(l2_stats);
+  mem->GetStats(mem_stats);
+
+  double l1_mr = (double)l1_stats.miss_num / l1_stats.access_counter;
+  double l2_mr = (double)l2_stats.miss_num / l2_stats.access_counter;
+
+  double amat = L1_BUS_LATENCY + L1_HIT_LATENCY + l1_mr * (L2_BUS_LATENCY + L2_HIT_LATENCY + l2_mr * MEM_HIT_LATENCY);
 
   printf("Global stats:\n");
   printf("  Total request   :     %d\n", total_request);
   printf("  Total time      :     %d\n", total_time);
   printf("  Miss number     :     %d\n", total_request - total_hit);
   printf("  Miss rate       :     %f\n", (double)(total_request - total_hit) / total_request);
+  printf("  AMAT            :     %f (cycles)\n", amat);
 
-  l1->GetStats(stats);
   printf("L1 Cache stats:\n");
-  printf("  Access counter  :     %d\n", stats.access_counter);
-  printf("  Access time     :     %d\n", stats.access_time);
-  printf("  Miss number     :     %d\n", stats.miss_num);
-  printf("  Miss rate       :     %f\n", (double) stats.miss_num / stats.access_counter);
-  printf("  Replace number  :     %d\n", stats.replace_num);
-  printf("  Prefetch number :     %d\n", stats.prefetch_num);
+  printf("  Access counter  :     %d\n", l1_stats.access_counter);
+  printf("  Access time     :     %d\n", l1_stats.access_time);
+  printf("  Miss number     :     %d\n", l1_stats.miss_num);
+  printf("  Miss rate       :     %f\n", (double) l1_stats.miss_num / l1_stats.access_counter);
+  printf("  Replace number  :     %d\n", l1_stats.replace_num);
+  printf("  Prefetch number :     %d\n", l1_stats.prefetch_num);
 
-  l2->GetStats(stats);
   printf("L2 Cache stats:\n");
-  printf("  Access counter  :     %d\n", stats.access_counter);
-  printf("  Access time     :     %d\n", stats.access_time);
-  printf("  Miss number     :     %d\n", stats.miss_num);
-  printf("  Miss rate       :     %f\n", (double) stats.miss_num / stats.access_counter);
-  printf("  Replace number  :     %d\n", stats.replace_num);
-  printf("  Prefetch number :     %d\n", stats.prefetch_num);
+  printf("  Access counter  :     %d\n", l2_stats.access_counter);
+  printf("  Access time     :     %d\n", l2_stats.access_time);
+  printf("  Miss number     :     %d\n", l2_stats.miss_num);
+  printf("  Miss rate       :     %f\n", (double) l2_stats.miss_num / l2_stats.access_counter);
+  printf("  Replace number  :     %d\n", l2_stats.replace_num);
+  printf("  Prefetch number :     %d\n", l2_stats.prefetch_num);
 
-  mem->GetStats(stats);
   printf("Memory stats:\n");
-  printf("  Access counter  :     %d\n", stats.access_counter);
-  printf("  Access time     :     %d\n", stats.access_time);
+  printf("  Access counter  :     %d\n", mem_stats.access_counter);
+  printf("  Access time     :     %d\n", mem_stats.access_time);
 }
 
 int main(int argc, char *argv[]) {

@@ -5,6 +5,7 @@
 #include "storage.hpp"
 #include <vector>
 #include <string>
+#include <queue>
 
 using namespace std;
 
@@ -17,6 +18,10 @@ typedef struct CacheConfig_ {
   int block_size;
   bool write_through; // 0|1 for back|through
   bool write_allocate; // 0|1 for no-alc|alc
+  bool bypass;
+  int prefetch; // number of blocks to prefetch
+  int mct; // size of set mct
+  string replacement;
 } CacheConfig;
 
 typedef struct CacheLine_ {
@@ -29,6 +34,8 @@ typedef struct CacheLine_ {
 
 typedef struct CacheSet_ {
   vector<CacheLine> lines;
+  vector<int> plru;
+  queue<uint64_t> mct;
 } CacheSet;
 
 class Cache : public Storage {
@@ -46,12 +53,12 @@ public:
 
   // Main access process
   void HandleRequest(uint64_t addr, int bytes, int read,
-                     char *content, int &hit, int &time);
+                     char *content, int &hit, int &time, bool prefetch = false);
 
 
 private:
   // Bypassing
-  bool BypassDecision();
+  bool BypassDecision(int set_idx, int line_idx, uint64_t tag);
 
   // Partitioning
   void PartitionAlgorithm(uint64_t addr, uint64_t &set_idx, uint64_t &tag, uint64_t &block_offset);
@@ -68,9 +75,9 @@ private:
   int ReplaceAlgorithm(uint64_t set_idx, int &time);
 
   // Prefetching
-  bool PrefetchDecision();
+  bool PrefetchDecision(bool prefetch);
 
-  void PrefetchAlgorithm();
+  void PrefetchAlgorithm(uint64_t next_addr);
 
   int t, s, b; // Number of tag/set/block bits
 
