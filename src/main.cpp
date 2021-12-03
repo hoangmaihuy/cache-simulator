@@ -57,10 +57,18 @@ void parse_args(int argc, char *argv[]) {
   l1_config.associativity = L1_CACHE_LINES;
   l1_config.write_through = L1_WRITE_THROUGH;
   l1_config.write_allocate = L1_WRITE_ALLOCATE;
-  l1_config.prefetch = 3;
-  l1_config.replacement = "lru";
-  l1_config.mct = 0;
-  l1_config.bypass = false;
+  if (optimize) {
+    l1_config.prefetch = 3;
+    l1_config.replacement = "plru";
+    l1_config.mct = 0;
+    l1_config.bypass = false;
+  } else {
+    l1_config.prefetch = 0;
+    l1_config.replacement = "lru";
+    l1_config.mct = 0;
+    l1_config.bypass = false;
+  }
+
 
 
   l2_config.size = L2_CACHE_SIZE;
@@ -68,10 +76,17 @@ void parse_args(int argc, char *argv[]) {
   l2_config.associativity = L2_CACHE_LINES;
   l2_config.write_through = L2_WRITE_THROUGH;
   l2_config.write_allocate = L2_WRITE_ALLOCATE;
-  l2_config.prefetch = 3;
-  l2_config.replacement = "plru";
-  l2_config.mct = 1;
-  l2_config.bypass = true;
+  if (optimize) {
+    l2_config.prefetch = 3;
+    l2_config.replacement = "lru";
+    l2_config.mct = 1;
+    l2_config.bypass = true;
+  } else {
+    l2_config.prefetch = 0;
+    l2_config.replacement = "lru";
+    l2_config.mct = 0;
+    l2_config.bypass = false;
+  }
 }
 
 void init_cache() {
